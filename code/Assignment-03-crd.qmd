@@ -1,6 +1,6 @@
 ---
 title: "Assignment 3 - CRD"
-author: "YOUR NAME HERE"  
+author: "UMAR MUNIR"  
 format:
   html:
     code-fold: false
@@ -37,12 +37,22 @@ Here is where we load the packages we will use.
 Make sure to load each package in the chunk below.  
 ```{r setup}
 
+install.packages("broom")
+
+#Loading packages
+library(tidyverse) # data wranggling and plotting
+library(car) # Anova functions
+library(emmeans) # model residuals extraction
+library(multcomp) # pairwise comparison letter display
 
 ```
 
 Now, import the data set `wheat_nk_bamyan.csv` in the chunk below.  
 ```{r data import}
+crd_df <- read_csv("../data/wheat_nk_bamyan.csv")
 
+crd_df
+#check how R is interpreting everything as numeric. We need to change some columns types.
 
 ```
 
@@ -52,16 +62,59 @@ For that, a study was conducted using a completely randomized design as the expe
 
 
 # b) EDA tables  
-Use this space to conduct exploratory data analysis of the imported data, in the form of tables.  
+Use this space to conduct exploratory data analysis of the imported data, in the form of tables.
+
+```{r summary}
+  summary(crd_df)
+
+```
+
+
+```{r glimpse}
+glimpse(crd_df)
+```
 
 
 # c) Wrangling  
 Here, make sure to wrangle your data set with all needed steps. Refer back to class code if you need a refresher on what was needed.  
 
+```{r wrangling}
+
+crd_dfw <- crd_df %>% 
+  mutate(rep = factor(rep),
+         nrate_kgha = factor(nrate_kgha),
+         krate_kgha = factor(krate_kgha)
+         ) %>% 
+  mutate(trtname = paste0(nrate_kgha, "+", krate_kgha))
+
+crd_dfw
+
+```
+
+```{r wrangled data}
+summary(crd_dfw)
+
+```
+
 
 # d) EDA plots  
 Now, explore the wrangled data using plots.  
 Make sure to explore plots showing the main effects and the interaction.  
+
+```{r n boxplot}
+ggplot(crd_dfw, aes(x = nrate_kgha,
+                    y = yield_kgha,
+                    color = nrate_kgha)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme(legend.position = "none")
+
+
+```
+
+
+
+
 
 ## Question 1) Below each plot of this section, write a sentence explaining your visual interpretation of the plot.  
 
