@@ -8,6 +8,7 @@ format:
     toc: true
     number-sections: false
     theme: cerulean
+    
 ---
 
 # Introduction  
@@ -37,13 +38,14 @@ Here is where we load the packages we will use.
 Make sure to load each package in the chunk below.  
 ```{r setup}
 
-install.packages("broom")
-
+#install.packages("broom")
+#install.packages("multcompView")
 #Loading packages
 library(tidyverse) # data wranggling and plotting
 library(car) # Anova functions
 library(emmeans) # model residuals extraction
 library(multcomp) # pairwise comparison letter display
+library(broom)
 
 ```
 
@@ -95,9 +97,12 @@ crd_dfw
 summary(crd_dfw)
 
 ```
-
+ 
 
 # d) EDA plots  
+
+## Question 1) Below each plot of this section, write a sentence explaining your visual interpretation of the plot.
+
 Now, explore the wrangled data using plots.  
 Make sure to explore plots showing the main effects and the interaction.  
 
@@ -111,12 +116,34 @@ ggplot(crd_dfw, aes(x = nrate_kgha,
 
 
 ```
+The boxplot shows an increasing yield trend with rising nitrogen rates, with a greater yield increase from 0-100 kg/ha than from 100-200 kg/ha, while the interquartile range remains similar.
 
 
 
 
 
-## Question 1) Below each plot of this section, write a sentence explaining your visual interpretation of the plot.  
+```{r k boxplot}
+ggplot(crd_dfw, aes(x = krate_kgha,
+                    y = yield_kgha,
+                    color = krate_kgha)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme(legend.position = "none")
+```
+Based on visual interpretation, yield shows a positive relationship with increasing potassium rate, while the interquartile range varies among the boxplots, with 30 kg/ha having the greatest spread.
+
+```{r nk boxplot}
+
+ggplot(crd_dfw, aes(x = nrate_kgha,
+                    y = yield_kgha,
+                    color = nrate_kgha)) +
+  geom_boxplot() +
+  geom_jitter() +
+  facet_grid(.~krate_kgha) +
+  theme(legend.position = "none")
+```
+The individual positive effects of nitrogen and potassium are evident here as well, but their combined effect is significantly higher, with similar yields observed for 30 kg/ha potassium + 200 kg/ha nitrogen and 60 kg/ha nitrogen + 100 kg/ha potassium, while yield plateaus beyond the latter.
+
 
 # e) Statistical model  
 In this section, run the appropriate model.  
@@ -124,29 +151,281 @@ Remember to set the contrast type to sum-to-zero (the default in R is set-to-zer
 
 Also, remember to specify all model terms needed for the treatment design.  
 
+```{r model}
+#changing to sum-to-zero contrast
+options (contrasts = c("contr.sum", "contr.poly"))
+
+#Model_fitting
+crd_mod <- lm(yield_kgha ~ nrate_kgha*krate_kgha,
+              data = crd_dfw)
+
+summary(crd_mod)
+
+
+
+
+
+```
+
+
+
 # f) ANOVA table  
 Use this section to check the ANOVA table, ensuring you use type 3 sum-of-squares.
 
 
+```{r anova}
+Anova(crd_mod, type = 3)
+```
 ## Question 2) Based on the ANOVA table above, for which effect(s) in the ANOVA should you extract means and perform pair-wise comparisons? Explain why.  
-
+We should extract means for the main treatments i.e., individual nitrogen and potassium rates becuase they have significant effects. We should also perform pair-wise comparison for these treatmetns and not the interaction.
 
 # g) Linear model assumptions  
 Use this section to first compute your residuals, including studentdized residuals.  
 
-## Question 3) What are the linear model assumptions that we need to check for? Create subsections (using ##) below for each of these assumptions, and write code to produce plots to check for these assumptions. For each assumption, write down your interpretation of the produced plots, and your thoughts if the assumptions hold or not.  
+
+```{r crd_resid}
+
+crd_resid <- augment(crd_mod) %>% 
+  mutate(.stdresid = rstudent(crd_mod))
+
+crd_resid
+
+
+```
+
+
+
+
+
+## Question 3) What are the linear model assumptions that we need to check for? Create subsections (using ##) below for each of these assumptions, and write code to produce plots to check for these assumptions. For each assumption, write down your interpretation of the produced plots, and your thoughts if the assumptions hold or not.
+
+The linear model assumptions that we need to check for are following,
+1) Independence of the residuals (no pattern)
+2) Presence of Homoscedacity
+3) Normality of the residuals
+4) No residual outliers
+
+## Residual independence
+
+```{r resid independence}
+
+ggplot(crd_resid, aes(x = .fitted,
+                      y = .stdresid)) +
+
+  geom_point(shape = 21,
+             fill = "purple",
+             size = 3,
+             alpha = .7) +
+  geom_hline(yintercept = c(-3,0,3), color = "red") +
+  geom_smooth() +
+  theme_bw()
+
+```
+Interpretation: The residues are independent because the spread is uniform around the zero depicted by the grey shape. The blue line that is overlapping the red line at zero is depicting that there is no pattern in residuals hence independece is established.
+
+##Homoscedacity
+
+```{r homoscedacity}
+ggplot(crd_resid, aes(x = .fitted,
+                      y = .stdresid)) +
+
+  geom_point(shape = 21,
+             fill = "purple",
+             size = 3,
+             alpha = .7) +
+  geom_hline(yintercept = c(-3,0,3), color = "red") +
+  geom_smooth() +
+  theme_bw()
+
+```
+Since the error bands are not showing fan like pattern or the error are not increasing, we can conclude that the variance is homogeneous across treatments. Therefore, homoscedacity is established.
+
+## Residual noramlity
+
+```{r resid normality}
+
+ggplot(crd_resid, aes(sample = .stdresid))+
+  stat_qq() +
+  stat_qq_line() + theme_bw()
+#point should be very close almost on top of the line. Some departure at tales is fine especialy data is small
+```
+The requirement for residuals to follow normality is that the residuals points should be close to the regression which is clearly the case, hence normality of residuals is established.
+
+
+
+
+```{r resid normality}
+
+ggplot(crd_resid, aes(x = .stdresid)) +
+  geom_density() +
+  scale_x_continuous(breaks = c(-3,0,3), limits = c(-3,3)) + theme_bw()
+
+```
+Although the bell curve is wider at the bottom, the majority of the data is centered around zero and within 3 standard deviation therefore we can conclude that normality is present in residuals.
+
+## Residual outliers
+
+```{r resid outliers}
+
+ggplot(crd_resid, aes(x = .fitted,
+                      y = .stdresid)) +
+
+  geom_point(shape = 21,
+             fill = "purple",
+             size = 3,
+             alpha = .7) +
+  geom_hline(yintercept = c(-3,0,3), color = "red") +
+  geom_smooth() +
+  theme_bw()
+
+
+```
+There are no outliers in the data shown above. All the data points are within the 3 standard deviation lines (red lines) at top and bottom.
+  
 
 # h) Model means  
 Use this section to extract model means according to your decision of the ANOVA table effects.  
+extract means of significant trts
+
+```{r interaction mean of nrate_kgha}
+
+crd_means_n <- emmeans(crd_mod, 
+                         ~nrate_kgha)
+
+crd_means_n
+
+```
+
+```{r interaction mean of krate_kgha}
+
+crd_means_k <- emmeans(crd_mod, ~ krate_kgha)
+
+crd_means_k
+
+```
+
+
+
 
 # i) Pairwise comparisons  
 Use this section to perform pair-wise comparison of the means extracted above.  
 
 Make sure to reverse the order from high to low, use letters instead of numbers, and no adjustment.  
 
+```{r interaction pwc all}
+
+crd_cld_n <- cld(crd_means_n,
+                   reversed = T,
+                   Letters = letters,
+                   adjust = "none")
+
+crd_cld_n
+
+```
+```{r interaction n inside k}
+crd_cld_k <- cld(crd_means_k,
+                   reversed = T,
+                   Letters = letters,
+                   adjust = "none")
+
+crd_cld_k
+
+```
+
+
+
+
+```{r selected pwc}
+
+crd_cld_selected_n <- crd_cld_n %>% 
+  as.data.frame() %>% 
+  mutate( letter = trimws(.group))
+
+
+crd_cld_selected_n
+```
+
+```{r}
+crd_cld_selected_k <- crd_cld_k %>% 
+  as.data.frame() %>% 
+  mutate( letter = trimws(.group))
+
+
+crd_cld_selected_k
+```
+
+
 # g) Final plot(s)  
 Produce final plot(s) to show your results.  
 Make sure to include both **raw data** and **statistical model summary (i.e., letter separation)**.  
+
+
+```{r crd final plot}
+#| fig-width: 8
+#| fig-height: 5
+ggplot(mapping = aes(fill = nrate_kgha)
+       ) +
+
+  geom_boxplot(data = crd_dfw,
+               aes(x = nrate_kgha, 
+                   y = yield_kgha),
+                   alpha = .85) +
+  geom_jitter(data = crd_dfw,
+              aes(x = nrate_kgha, 
+                   y = yield_kgha),
+              shape = 21,
+              alpha = .7,
+              size = 3)+
+  geom_label(data = crd_cld_selected_n, aes(x = nrate_kgha, 
+                                          y = emmean,
+                                          label = letter),
+             fill = "white"
+             ) +
+  theme_classic() +
+  labs(title = "Effect of nitrogen on wheat yield",
+       x = "Nitrogen rate (kg/ha)",
+       y = "Yield (kg/ha)") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.position = "none")
+
+```
+
+
+
+
+```{r}
+#| fig-width: 8
+#| fig-height: 5
+ggplot(mapping = aes(fill = krate_kgha)) +
+
+  geom_boxplot(data = crd_dfw,
+               aes(x = krate_kgha, 
+                   y = yield_kgha),
+               alpha = .85) +
+  geom_jitter(data = crd_dfw,
+              aes(x = krate_kgha, 
+                   y = yield_kgha),
+              shape = 21,
+              alpha = .7,
+              size = 3)+
+  geom_label(data = crd_cld_selected_k, aes(x = krate_kgha, 
+                                          y = emmean,
+                                          label = letter),
+             fill ="white") +
+  theme_classic() +
+  labs(title = "Effect of potassium on wheat yield",
+       x = "Potassium rate (kg/ha)",
+       y = "Yield (kg/ha)") +
+  theme(plot.title = element_text(hjust = 0.5))+
+    theme(legend.position = "none")
+
+
+```
+
+
+
+
+
 
 Be mindful of your plot to ensure you are creating it in an intuitive way for your audience in relation to interpreting the letter separation structure you used.  
 
